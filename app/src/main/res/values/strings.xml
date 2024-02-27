@@ -1,0 +1,22 @@
+<resources>
+    <!--=========================================================================================-->
+    <!-- zebra -->
+    <!--=========================================================================================-->
+    <string name="zebra_logo">Zebra logo</string>
+
+    <string name="zebra_technologies_corp">Zebra Technologies Corp.</string>
+    <string name="zebra_address_line_1"><b>ISV TEAM</b>, Lincolnshire IL, 60069.</string>
+    <string name="zebra_address_line_2">Visit <a href="https://developer.motorolasolutions.com/welcome">developer.zebra.com</a> for more support.</string>
+
+    <string name="ip_dns">IP/DNS</string>
+    <string name="bluetooth_r">Bluetooth (R)</string>
+    <string name="ip_address">Ip Address</string>
+    <string name="port">Port</string>
+    <string name="print">print</string>
+
+    <string name="preference_bluetooth_address_key" translatable="false">ZEBRA_DEMO_BLUETOOTH_ADDRESS</string>
+    <string name="preference_tcp_address_key" translatable="false">ZEBRA_DEMO_TCP_ADDRESS</string>
+    <string name="preference_tcp_port_key" translatable="false">ZEBRA_DEMO_TCP_PORT</string>
+    <string name="preference_prefs_name_key" translatable="false">OurSavedAddress</string>
+    <!--=========================================================================================-->
+</resources>

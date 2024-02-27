@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <color name="platinum">#E8E8E8</color>
+    <color name="cultured">#F6F6F6</color>
+    <color name="venetian_red">#D84A30</color>
+    <color name="strokeColor">#707070</color>
+
+    <!--=========================================================================================-->
+    <!-- zebra -->
+    <!--=========================================================================================-->
+    <color name="zebra_blue">#00769F</color>
+    <color name="zebra_yellow">#FFD200</color>
+    <color name="light_gray">#CCCCCC</color>
+    <!--=========================================================================================-->
+</resources>
