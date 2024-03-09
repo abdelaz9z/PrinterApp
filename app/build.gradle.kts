@@ -47,5 +47,9 @@ dependencies {
 
     // Zebra
     implementation(files("libs/ZSDK_ANDROID_API.jar"))
-    implementation ("com.fasterxml.jackson.core:jackson-databind:2.11.1")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.11.1")
+
+    implementation("com.google.zxing:core:3.4.1")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
 }

@@ -1,4 +1,6 @@
 <resources>
+
+
     <!--=========================================================================================-->
     <!-- zebra -->
     <!--=========================================================================================-->
@@ -18,5 +20,6 @@
     <string name="preference_tcp_address_key" translatable="false">ZEBRA_DEMO_TCP_ADDRESS</string>
     <string name="preference_tcp_port_key" translatable="false">ZEBRA_DEMO_TCP_PORT</string>
     <string name="preference_prefs_name_key" translatable="false">OurSavedAddress</string>
+    <string name="app_name">PrinterApp</string>
     <!--=========================================================================================-->
 </resources>

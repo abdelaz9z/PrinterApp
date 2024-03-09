@@ -1,6 +1,6 @@
 package com.hyperone.printerapp.utils
 
-import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Looper
@@ -14,35 +14,37 @@ import android.widget.TextView
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.FragmentManager
 import com.google.android.material.textfield.TextInputLayout
-import com.hyperone.printerapp.MainActivity
 import com.hyperone.printerapp.R
 import com.zebra.sdk.comm.BluetoothConnection
 import com.zebra.sdk.comm.Connection
 import com.zebra.sdk.comm.ConnectionException
 import com.zebra.sdk.comm.TcpConnection
-import com.zebra.sdk.printer.PrinterLanguage
-import com.zebra.sdk.printer.SGD
+import com.zebra.sdk.graphics.ZebraImageFactory
+import com.zebra.sdk.graphics.ZebraImageI
 import com.zebra.sdk.printer.ZebraPrinter
 import com.zebra.sdk.printer.ZebraPrinterFactory
-import com.zebra.sdk.printer.ZebraPrinterLanguageUnknownException
+import java.io.ByteArrayOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class ZebraPrinterDialogFragment : DialogFragment() {
 
-    private var printed = false
-    private var configLabel = "".toByteArray()
-
     private var connection: Connection? = null
-    private var btRadioButton: RadioButton? = null
-    private var macInput: TextInputLayout? = null
-    private var ipAddressInput: TextInputLayout? = null
-    private var portInput: TextInputLayout? = null
-    private var statusField: TextView? = null
-    private var printButton: Button? = null
     private var printer: ZebraPrinter? = null
+    private lateinit var bitmap: Bitmap
+    private lateinit var btRadioButton: RadioButton
+    private lateinit var macInput: TextInputLayout
+    private lateinit var ipAddressInput: TextInputLayout
+    private lateinit var portInput: TextInputLayout
+    private lateinit var statusField: TextView
+    private lateinit var printButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Initialize your variables here
+        arguments?.let {
+            bitmap = it.getParcelable(ARG_BITMAP)!!
+        }
     }
 
     override fun onCreateView(
@@ -51,48 +53,45 @@ class ZebraPrinterDialogFragment : DialogFragment() {
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.zebra_printer, container, false)
-        // Initialize your views and set listeners here
+        initializeViews(view)
         return view
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        // Setup your views and their listeners here
-        initializeViews(view)
-
-        // Load saved settings when the dialog view is created
         loadSavedSettings()
-
-        // Setup your views and their listeners here
-        initializeViews(view)
     }
 
     private fun initializeViews(view: View) {
         btRadioButton = view.findViewById(R.id.bluetoothRadio)
+        macInput = view.findViewById(R.id.macInput)
         ipAddressInput = view.findViewById(R.id.ipAddressInput)
         portInput = view.findViewById(R.id.portInput)
-        macInput = view.findViewById(R.id.macInput)
         statusField = view.findViewById(R.id.statusText)
         printButton = view.findViewById(R.id.button_print)
 
-        val radioGroup = dialog!!.findViewById<RadioGroup>(R.id.radioGroup)
-        radioGroup.setOnCheckedChangeListener { group: RadioGroup?, checkedId: Int ->
-            if (checkedId == R.id.bluetoothRadio) {
-                toggleEditField(macInput!!, true)
-                toggleEditField(portInput!!, false)
-                toggleEditField(ipAddressInput!!, false)
-            } else {
-                toggleEditField(portInput!!, true)
-                toggleEditField(ipAddressInput!!, true)
-                toggleEditField(macInput!!, false)
+        val radioGroup = view.findViewById<RadioGroup>(R.id.radioGroup)
+        radioGroup.setOnCheckedChangeListener { _, checkedId ->
+            when (checkedId) {
+                R.id.bluetoothRadio -> {
+                    toggleEditField(macInput, true)
+                    toggleEditField(portInput, false)
+                    toggleEditField(ipAddressInput, false)
+                }
+
+                else -> {
+                    toggleEditField(macInput, false)
+                    toggleEditField(portInput, true)
+                    toggleEditField(ipAddressInput, true)
+                }
             }
         }
 
-        printButton!!.setOnClickListener {
+        printButton.setOnClickListener {
             Thread {
-                enableTestButton(false)
+                enablePrintButton(false)
                 Looper.prepare()
-                doConnectionTest()
+                doPrint()
                 Looper.loop()
                 Looper.myLooper()!!.quit()
             }.start()
@@ -105,206 +104,139 @@ class ZebraPrinterDialogFragment : DialogFragment() {
         textInputLayout.isFocusableInTouchMode = set
     }
 
-    private fun doConnectionTest() {
-        printer = connect()
-        if (printer != null) {
-            sendTestLabel()
+    private fun doPrint() {
+        if (connect()) {
+            if (printer != null) {
+                sendTestLabel()
+            } else {
+                disconnect()
+                dialog?.dismiss()
+            }
         } else {
-            disconnect()
-            dialog?.dismiss()
+            setStatus("Failed to connect", Color.RED)
+            enablePrintButton(true)
         }
     }
 
-    private fun connect(): ZebraPrinter? {
+    private fun connect(): Boolean {
         setStatus("Connecting…", Color.YELLOW)
         connection = null
-        if (isBluetoothSelected) {
-            connection = BluetoothConnection(macAddressFieldText)
-            // Save settings for (MAC address)
-            saveSettings(macAddressFieldText)
-        } else {
-            try {
-                val port = tcpPortNumber.toInt()
-                connection = TcpConnection(tcpAddress, port)
-                // Save settings for (IP address, port)
-                saveSettings(tcpAddress, tcpPortNumber)
-            } catch (e: NumberFormatException) {
-                setStatus("Port Number Is Invalid", Color.RED)
-                return null
+        return try {
+            connection = if (btRadioButton.isChecked) {
+                val macAddress = macInput.editText?.text.toString()
+                BluetoothConnection(macAddress)
+            } else {
+                val ipAddress = ipAddressInput.editText?.text.toString()
+                val port = portInput.editText?.text.toString().toInt()
+                TcpConnection(ipAddress, port)
             }
-        }
-        try {
             connection!!.open()
             setStatus("Connected", Color.GREEN)
+            printer = ZebraPrinterFactory.getInstance(connection)
+            true
         } catch (e: ConnectionException) {
-            setStatus("Comm Error! Disconnecting", Color.RED)
-            DemoSleeper.sleep(1000)
-            disconnect()
+            setStatus("Connection Error: ${e.message}", Color.RED)
+            false
+        } catch (e: NumberFormatException) {
+            setStatus("Invalid Port Number", Color.RED)
+            false
         }
-        var printer: ZebraPrinter? = null
-        if (connection!!.isConnected) {
-            try {
-                printer = ZebraPrinterFactory.getInstance(connection)
-                setStatus("Determining Printer Language", Color.YELLOW)
-                val pl = SGD.GET("device.languages", connection)
-                setStatus("Printer Language $pl", Color.BLUE)
-            } catch (e: ConnectionException) {
-                setStatus("Unknown Printer Language", Color.RED)
-                printer = null
-                DemoSleeper.sleep(1000)
-                disconnect()
-            } catch (e: ZebraPrinterLanguageUnknownException) {
-                setStatus("Unknown Printer Language", Color.RED)
-                printer = null
-                DemoSleeper.sleep(1000)
-                disconnect()
-            }
-        }
-        return printer
     }
 
     private fun disconnect() {
         try {
-            setStatus("Disconnecting", Color.RED)
-            if (connection != null) {
-                connection!!.close()
-            }
-            setStatus("Not Connected", Color.RED)
+            connection?.close()
         } catch (e: ConnectionException) {
-            setStatus("COMM Error! Disconnected", Color.RED)
-        } finally {
-            enableTestButton(true)
+            setStatus("Error: ${e.message}", Color.RED)
         }
     }
 
     private fun sendTestLabel() {
         try {
-            val linkOsPrinter = ZebraPrinterFactory.createLinkOsPrinter(printer)
-            val printerStatus =
-                if (linkOsPrinter != null) linkOsPrinter.currentStatus else printer!!.currentStatus
-            if (printerStatus.isReadyToPrint) {
+            val printerStatus = printer?.currentStatus
+            if (printerStatus?.isReadyToPrint == true) {
+                val printer = ZebraPrinterFactory.getInstance(connection)
+                printer.printImage(convertBitmapToZebraImage(bitmap), 75, 100, 250, 250, false)
 
-                configLabel = "".toByteArray()
-
-                configLabel = getConfigLabel()!!
-                connection!!.write(configLabel)
-                printed = true
+                // connection?.write(trimIndent.toByteArray())
                 setStatus("Sending Data", Color.BLUE)
-
-                activity?.startActivity(Intent(activity, MainActivity::class.java))
-                activity?.finish()
-
                 dialog?.cancel()
-            } else if (printerStatus.isHeadOpen) {
-                setStatus("Printer Head Open", Color.RED)
-                printed = false
-            } else if (printerStatus.isPaused) {
-                setStatus("Printer is Paused", Color.RED)
-                printed = false
-            } else if (printerStatus.isPaperOut) {
-                setStatus("Printer Media Out", Color.RED)
-                printed = false
-            }
-            DemoSleeper.sleep(1500)
-            if (connection is BluetoothConnection) {
-                val friendlyName = (connection as BluetoothConnection).friendlyName
-                setStatus(friendlyName, Color.MAGENTA)
-                DemoSleeper.sleep(500)
+            } else {
+                setStatus("Printer Error: ${printerStatus?.printMode}", Color.RED)
             }
         } catch (e: ConnectionException) {
-            setStatus(e.message, Color.RED)
-            printed = false
+            setStatus("Error: ${e.message}", Color.RED)
         } finally {
             disconnect()
         }
     }
 
-    private fun setStatus(statusMessage: String?, color: Int) {
-        activity?.runOnUiThread {
-            statusField?.setBackgroundColor(color)
-            statusField?.text = statusMessage
-        }
-        DemoSleeper.sleep(1000)
+    fun generateZPLCode(part1: String, part2: String): String {
+        return "$part1\n$part2"
     }
 
-    private fun enableTestButton(enabled: Boolean) {
-        activity?.runOnUiThread { printButton?.isEnabled = enabled }
+    fun formatDate(date: Date): String {
+        val format = SimpleDateFormat("dd/MM/yyyy hh:mm:ss a", Locale.getDefault())
+        return format.format(date)
     }
 
-    private fun getConfigLabel(): ByteArray? {
-        var configLabel: ByteArray? = null
-        try {
-            val printerLanguage = printer?.printerControlLanguage
-            if (printerLanguage == PrinterLanguage.ZPL) {
-                try {
-                    configLabel = generateZplCode(
-                        qrCodeData = "123",
-                        barcodeData = "123",
-                        name = "item #1"
-                    ).toByteArray()
-                } catch (e: NullPointerException) {
-                    // Handle exception
-                }
-            } else if (printerLanguage == PrinterLanguage.CPCL) {
-                val cpclConfigLabel = """
-                ! 0 200 200 406 1
-                ON-FEED IGNORE
-                BOX 20 20 380 380 8
-                T 0 6 137 177 TEST
-                PRINT
-               
-                """.trimIndent()
-                configLabel = cpclConfigLabel.toByteArray()
+    private fun convertBitmapToZebraImage(bitmap: Bitmap): ZebraImageI {
+        return ZebraImageFactory.getImage(convertToMonochrome(bitmap))
+    }
+
+    private fun convertToMonochrome(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val monochromeBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                val pixel = bitmap.getPixel(x, y)
+                val grayscale =
+                    (Color.red(pixel) * 0.299 + Color.green(pixel) * 0.587 + Color.blue(pixel) * 0.114).toInt()
+                val monochromeColor = if (grayscale > 128) Color.WHITE else Color.BLACK
+                monochromeBitmap.setPixel(x, y, monochromeColor)
             }
-        } catch (e: ConnectionException) {
-            // Handle exception
         }
-        return configLabel
+        return monochromeBitmap
     }
 
-    private fun generateZplCode(qrCodeData: String, barcodeData: String, name: String): String =
-        """
-        ^XA
-        ^FO50,50^BQN,2,10
-        ^FDMM,AAC-$qrCodeData^FS
-        ^FO50,300^A0N,30,30^FD$name^FS
-        ^XZ
-    """.trimIndent()
+    private fun setStatus(statusMessage: String, color: Int) {
+        activity?.runOnUiThread {
+            statusField.setBackgroundColor(color)
+            statusField.text = statusMessage
+        }
+    }
+
+    private fun enablePrintButton(enabled: Boolean) {
+        activity?.runOnUiThread {
+            printButton.isEnabled = enabled
+        }
+    }
 
     private fun loadSavedSettings() {
         val context = requireContext()
-        ipAddressInput?.editText?.setText(SettingsHelper.getIp(context))
-        portInput?.editText?.setText(SettingsHelper.getPort(context))
-        macInput?.editText?.setText(SettingsHelper.getBluetoothAddress(context))
+        ipAddressInput.editText?.setText(SettingsHelper.getIp(context))
+        portInput.editText?.setText(SettingsHelper.getPort(context))
+        macInput.editText?.setText(SettingsHelper.getBluetoothAddress(context))
     }
 
-    private fun saveSettings(ipAddress: String, port: String) {
-        val context = requireContext()
-        SettingsHelper.saveIp(context, ipAddress)
-        SettingsHelper.savePort(context, port)
+    private fun convertBitmapToBinary(bitmap: Bitmap): ByteArray {
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+        return outputStream.toByteArray()
     }
-
-    private fun saveSettings(mac: String) {
-        val context = requireContext()
-        SettingsHelper.saveBluetoothAddress(context, mac)
-    }
-
-    private val isBluetoothSelected: Boolean
-        get() = btRadioButton?.isChecked ?: false
-
-    private val macAddressFieldText: String
-        get() = macInput?.editText?.text.toString()
-
-    private val tcpAddress: String
-        get() = ipAddressInput?.editText?.text.toString()
-
-    private val tcpPortNumber: String
-        get() = portInput?.editText?.text.toString()
 
     companion object {
-        fun showDialog(fragmentManager: FragmentManager) {
+        private const val ARG_BITMAP = "bitmap"
+
+        fun showDialog(fragmentManager: FragmentManager, bitmap: Bitmap) {
             val dialog = ZebraPrinterDialogFragment()
-            dialog.show(fragmentManager, "AWBPrintDialogFragment")
+            val args = Bundle().apply {
+                putParcelable(ARG_BITMAP, bitmap)
+            }
+            dialog.arguments = args
+            dialog.show(fragmentManager, "ZebraPrinterDialogFragment")
         }
     }
 }
