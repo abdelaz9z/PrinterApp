@@ -15,8 +15,10 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.WriterException
 import com.google.zxing.qrcode.QRCodeWriter
 import com.hyperone.printerapp.utils.ZebraPrinterDialogFragment
+import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.EnumMap
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,7 +54,7 @@ class MainActivity : AppCompatActivity() {
 
         return try {
             val writer = QRCodeWriter()
-            val bitMatrix = writer.encode(text, BarcodeFormat.QR_CODE, 400, 400, hints)
+            val bitMatrix = writer.encode(text, BarcodeFormat.QR_CODE, 300, 300, hints)
             val width = bitMatrix.width
             val height = bitMatrix.height
             val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
@@ -73,13 +75,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun createLabelBitmap(
         branchName: String = "HyperOne",
-        dateString: String = Date().toString(),
-        numberOfItems: Int = 3,
+        date: Date = Date(),
+        numberOfItems: Int = 1000,
         imageBitmap: Bitmap // Bitmap object
     ): Bitmap {
         // Calculate width and height based on image size and text content
         val imageWidth = imageBitmap.width
         val imageHeight = imageBitmap.height
+
+        // Format date
+        val dateFormat = SimpleDateFormat("dd/MM/yyyy hh:mm:ss a", Locale.getDefault())
+        val dateString = dateFormat.format(date)
+
         val textHeight = calculateTextHeight(branchName, dateString, numberOfItems)
 
         val height = imageHeight + textHeight // Height includes image height and text height
