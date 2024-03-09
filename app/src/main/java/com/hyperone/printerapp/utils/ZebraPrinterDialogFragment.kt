@@ -156,7 +156,15 @@ class ZebraPrinterDialogFragment : DialogFragment() {
             val printerStatus = printer?.currentStatus
             if (printerStatus?.isReadyToPrint == true) {
                 val printer = ZebraPrinterFactory.getInstance(connection)
-                printer.printImage(convertBitmapToZebraImage(bitmap), 75, 100, 250, 250, false)
+
+                printer.printImage(
+                    convertBitmapToZebraImage(bitmap),
+                    75,
+                    100,
+                    bitmap.width,
+                    bitmap.height,
+                    false
+                )
 
                 // connection?.write(trimIndent.toByteArray())
                 setStatus("Sending Data", Color.BLUE)
